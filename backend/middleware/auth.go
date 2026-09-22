@@ -1,11 +1,11 @@
 package middleware
 
 import (
-	"os"
 	"strings"
 
+	"eposyandu-backend/utils"
+
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func Protected() fiber.Handler {
@@ -13,35 +13,26 @@ func Protected() fiber.Handler {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"status":  "error",
-				"message": "Akses ditolak, token tidak ditemukan",
+				"error": "Header otorisasi diperlukan",
 			})
 		}
 
-		tokenString := strings.Replace(authHeader, "Bearer ", "", 1)
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			return []byte(os.Getenv("JWT_SECRET")), nil
-		})
-
-		if err != nil || !token.Valid {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"status":  "error",
-				"message": "Token tidak valid atau telah kadaluwarsa",
+				"error": "Format token harus 'Bearer <token>'",
 			})
 		}
 
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
+		claims, err := utils.ValidateToken(parts[1])
+		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"status":  "error",
-				"message": "Gagal membaca claims token",
+				"error": "Token tidak valid atau kadaluwarsa",
 			})
 		}
 
-		// Simpan user_id dan role di locals Fiber agar bisa dibaca di controller
-		c.Locals("user_id", uint(claims["user_id"].(float64)))
-		c.Locals("role", claims["role"].(string))
-
+		c.Locals("userID", claims.UserID)
+		c.Locals("role", claims.Role)
 		return c.Next()
 	}
 }

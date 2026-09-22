@@ -10,34 +10,52 @@ import (
 func SetupRoutes(app *fiber.App) {
 	api := app.Group("/api/v1")
 
-	// Public Routes
+	// 1. Public Routes
 	auth := api.Group("/auth")
 	auth.Post("/register", controllers.Register)
 	auth.Post("/login", controllers.Login)
 
-	// Protected Routes (Perlu JWT)
+	// 2. Protected Routes (Membutuhkan JWT Token Valid)
 	protected := api.Group("", middleware.Protected())
 
-	// Profile
+	// Profile & User Management
 	protected.Get("/user/profile", controllers.GetProfile)
 
 	// Modul Anak
-	protected.Post("/anak", middleware.AuthorizeRoles("admin", "nakes", "kader", "ibu"), controllers.CreateAnak)
-	protected.Get("/anak", middleware.AuthorizeRoles("admin", "nakes", "kader"), controllers.GetAllAnak)
-	protected.Get("/anak/my-children", middleware.AuthorizeRoles("ibu"), controllers.GetAnakByIbu)
+	anak := protected.Group("/anak")
+	anak.Post("/", middleware.AuthorizeRoles("ADMIN", "KADER", "ORTU"), controllers.CreateAnak)
+	anak.Get("/", middleware.AuthorizeRoles("ADMIN", "KADER"), controllers.GetAllAnak)
+	anak.Get("/my-children", middleware.AuthorizeRoles("ORTU"), controllers.GetAnakByIbu)
 
 	// Modul KMS (Penimbangan)
-	protected.Post("/kms", middleware.AuthorizeRoles("admin", "nakes", "kader"), controllers.AddPenimbangan)
-	protected.Get("/kms/anak/:anak_id", controllers.GetRiwayatKMSByAnak)
+	kms := protected.Group("/kms")
+	kms.Post("/", middleware.AuthorizeRoles("ADMIN", "KADER"), controllers.AddPenimbangan)
+	kms.Get("/anak/:anak_id", middleware.AuthorizeRoles("ADMIN", "KADER", "ORTU"), controllers.GetRiwayatKMSByAnak)
 
 	// Modul Imunisasi
-	protected.Post("/imunisasi", middleware.AuthorizeRoles("admin", "nakes", "kader"), controllers.AddImunisasi)
-	protected.Get("/imunisasi/anak/:anak_id", controllers.GetImunisasiByAnak)
+	imunisasi := protected.Group("/imunisasi")
+	imunisasi.Post("/", middleware.AuthorizeRoles("ADMIN", "KADER"), controllers.AddImunisasi)
+	imunisasi.Get("/anak/:anak_id", middleware.AuthorizeRoles("ADMIN", "KADER", "ORTU"), controllers.GetImunisasiByAnak)
+
+	// Modul Ibu Hamil & Pemeriksaan
+	ibuHamil := protected.Group("/ibu-hamil")
+	ibuHamil.Post("/", middleware.AuthorizeRoles("ADMIN", "KADER"), controllers.RegisterIbuHamil)
+	ibuHamil.Get("/", middleware.AuthorizeRoles("ADMIN", "KADER"), controllers.GetAllIbuHamil)
+	ibuHamil.Post("/pemeriksaan", middleware.AuthorizeRoles("ADMIN", "KADER"), controllers.AddPemeriksaanBumil)
+	ibuHamil.Get("/pemeriksaan/:ibu_hamil_id", middleware.AuthorizeRoles("ADMIN", "KADER", "ORTU"), controllers.GetRiwayatPemeriksaanBumil)
 
 	// Modul Jadwal Posyandu
-	protected.Post("/jadwal", middleware.AuthorizeRoles("admin", "nakes", "kader"), controllers.CreateJadwal)
-	protected.Get("/jadwal", controllers.GetJadwal)
+	jadwal := protected.Group("/jadwal")
+	jadwal.Post("/", middleware.AuthorizeRoles("ADMIN", "KADER"), controllers.CreateJadwal)
+	jadwal.Get("/", controllers.GetJadwal) // Dapat diakses semua role terautentikasi
 
-	// Modul Dashboard (Nakes/Kader)
-	protected.Get("/dashboard/summary", middleware.AuthorizeRoles("admin", "nakes", "kader"), controllers.GetDashboardSummary)
+	// Modul Edukasi & Informasi
+	edukasi := protected.Group("/edukasi")
+	edukasi.Post("/", middleware.AuthorizeRoles("ADMIN", "KADER"), controllers.CreateEdukasi)
+	edukasi.Get("/", controllers.GetAllEdukasi)    // Dapat diakses semua role terautentikasi
+	edukasi.Get("/:id", controllers.GetEdukasiByID) // Dapat diakses semua role terautentikasi
+
+	// Modul Dashboard
+	dashboard := protected.Group("/dashboard")
+	dashboard.Get("/summary", middleware.AuthorizeRoles("ADMIN", "KADER"), controllers.GetDashboardSummary)
 }

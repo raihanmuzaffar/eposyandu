@@ -6,134 +6,140 @@ import (
 	"eposyandu-backend/utils"
 
 	"github.com/gofiber/fiber/v2"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type RegisterInput struct {
-	NamaLengkap string `json:"nama_lengkap" validate:"required"`
-	NIK         string `json:"nik"`
-	Email       string `json:"email" validate:"required,email"`
-	Password    string `json:"password" validate:"required,min=6"`
-	Role        string `json:"role"`
-	NoHP        string `json:"no_hp"`
-	PosyanduID  *uint  `json:"posyandu_id"`
+	Nama        string `json:"nama" xml:"nama" form:"nama"`
+	NamaLengkap string `json:"nama_lengkap" xml:"nama_lengkap" form:"nama_lengkap"`
+	NIK         string `json:"nik" xml:"nik" form:"nik"`
+	Email       string `json:"email" xml:"email" form:"email"`
+	Password    string `json:"password" xml:"password" form:"password"`
+	NoHP        string `json:"no_hp" xml:"no_hp" form:"no_hp"`
+	Role        string `json:"role" xml:"role" form:"role"`
 }
 
 type LoginInput struct {
-	NoHP     string `json:"no_hp"`
-	Password string `json:"password"`
+	Email    string `json:"email" xml:"email" form:"email"`
+	Password string `json:"password" xml:"password" form:"password"`
 }
 
+// Register handler untuk pendaftaran user baru
 func Register(c *fiber.Ctx) error {
 	var input RegisterInput
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Format request tidak valid",
+			"error": "Format request tidak valid",
 		})
 	}
 
-	// Hash password
-	hashedPassword, err := utils.HashPassword(input.Password)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Gagal memproses password",
+			"error": "Gagal memproses password",
 		})
 	}
 
-	// Penanganan default role
-	roleStr := input.Role
-	if roleStr == "" {
-		roleStr = string(models.RoleOrtu)
+	// Casting string input ke custom type models.Role
+	role := models.RoleOrtu
+	if input.Role != "" {
+		role = models.Role(input.Role)
 	}
 
 	user := models.User{
+		Nama:        input.Nama,
 		NamaLengkap: input.NamaLengkap,
 		NIK:         input.NIK,
 		Email:       input.Email,
 		Password:    string(hashedPassword),
-		Role:        models.Role(roleStr), // Konversi string ke models.Role
 		NoHP:        input.NoHP,
-		PosyanduID:  input.PosyanduID, // Menggunakan *uint langsung sesuai struct model
+		Role:        role,
 	}
 
 	if err := config.DB.Create(&user).Error; err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Gagal mendaftarkan user, NIK/No. HP/Email mungkin sudah terdaftar",
+			"error": "Gagal meregistrasi pengguna. Email atau NIK mungkin sudah digunakan",
 		})
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
-		"status":  "success",
-		"message": "Pendaftaran berhasil",
-		"data": fiber.Map{
-			"id":           user.ID,
-			"nama_lengkap": user.NamaLengkap,
-			"no_hp":        user.NoHP,
-			"role":         user.Role,
+		"message": "Registrasi berhasil",
+		"user": fiber.Map{
+			"id":    user.ID,
+			"nama":  user.Nama,
+			"email": user.Email,
+			"role":  user.Role,
 		},
 	})
 }
 
+// Login handler untuk otentikasi user
 func Login(c *fiber.Ctx) error {
 	var input LoginInput
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Format request tidak valid",
+			"error": "Format request tidak valid",
 		})
 	}
 
 	var user models.User
-	if err := config.DB.Where("no_hp = ?", input.NoHP).First(&user).Error; err != nil {
+	if err := config.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"status":  "error",
-			"message": "No HP atau Password salah",
+			"error": "Email atau password salah",
 		})
 	}
 
-	if !utils.CheckPasswordHash(input.Password, user.Password) {
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-			"status":  "error",
-			"message": "No HP atau Password salah",
+			"error": "Email atau password salah",
 		})
 	}
 
-	// Cast user.Role (models.Role) ke string saat dipassing ke GenerateJWT
-	token, err := utils.GenerateJWT(user.ID, string(user.Role))
+	token, err := utils.GenerateToken(user.ID, string(user.Role))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Gagal membuat token autentikasi",
+			"error": "Gagal membuat token autentikasi",
 		})
 	}
 
 	return c.JSON(fiber.Map{
-		"status":  "success",
 		"message": "Login berhasil",
 		"token":   token,
-		"data": fiber.Map{
+		"user": fiber.Map{
 			"id":           user.ID,
+			"nama":         user.Nama,
 			"nama_lengkap": user.NamaLengkap,
+			"email":        user.Email,
 			"role":         user.Role,
 		},
 	})
 }
 
+// GetProfile mengambil profil user aktif
 func GetProfile(c *fiber.Ctx) error {
-	userID := c.Locals("user_id").(uint)
+	userID := c.Locals("userID")
+	if userID == nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": "Tidak terautentikasi",
+		})
+	}
 
 	var user models.User
-	if err := config.DB.Preload("Posyandu").First(&user, userID).Error; err != nil {
+	if err := config.DB.First(&user, userID).Error; err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"status":  "error",
-			"message": "User tidak ditemukan",
+			"error": "Pengguna tidak ditemukan",
 		})
 	}
 
 	return c.JSON(fiber.Map{
-		"status": "success",
-		"data":   user,
+		"user": fiber.Map{
+			"id":           user.ID,
+			"nama":         user.Nama,
+			"nama_lengkap": user.NamaLengkap,
+			"email":        user.Email,
+			"role":         user.Role,
+			"nik":          user.NIK,
+			"no_hp":        user.NoHP,
+		},
 	})
 }

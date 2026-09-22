@@ -1,42 +1,34 @@
 package middleware
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt/v5"
 )
 
-// AuthorizeRoles memeriksa apakah role user sesuai dengan role yang diizinkan
-func AuthorizeRoles(allowedRoles ...string) fiber.Handler {
+func AuthorizeRoles(roles ...string) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		userToken := c.Locals("user")
-		if userToken == nil {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"status":  "error",
-				"message": "Akses ditolak: Token tidak ditemukan",
-			})
-		}
-
-		token := userToken.(*jwt.Token)
-		claims := token.Claims.(jwt.MapClaims)
-		userRole, ok := claims["role"].(string)
-
-		if !ok {
+		userRole, ok := c.Locals("role").(string)
+		if !ok || userRole == "" {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"status":  "error",
-				"message": "Akses ditolak: Role tidak valid",
+				"error": "Akses ditolak: Hak akses tidak terdefinisi",
 			})
 		}
 
-		// Periksa apakah role user ada di dalam daftar allowedRoles
-		for _, role := range allowedRoles {
-			if userRole == role {
-				return c.Next() // Role diizinkan, lanjutkan request
+		allowed := false
+		for _, r := range roles {
+			if strings.EqualFold(userRole, r) {
+				allowed = true
+				break
 			}
 		}
 
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-			"status":  "error",
-			"message": "Akses ditolak: Anda tidak memiliki hak akses untuk tindakan ini",
-		})
+		if !allowed {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Anda tidak memiliki akses ke resource ini",
+			})
+		}
+
+		return c.Next()
 	}
 }

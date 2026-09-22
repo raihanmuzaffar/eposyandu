@@ -5,30 +5,40 @@ import (
 	"os"
 
 	"eposyandu-backend/config"
+	"eposyandu-backend/database"
 	"eposyandu-backend/routes"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	// 1. Inisialisasi Koneksi Database
+	// 1. Load File .env (Mencegah error Access Denied MySQL)
+	if err := godotenv.Load(); err != nil {
+		log.Println("Peringatan: File .env tidak ditemukan, menggunakan environment variable bawaan/default OS")
+	}
+
+	// 2. Inisialisasi Koneksi Database
 	config.ConnectDB()
 
-	// 2. Inisialisasi App Fiber
+	// 3. Jalankan Database Seeder (Membuat Akun Admin, Kader, Ortu bawaan)
+	database.SeedUser()
+
+	// 4. Inisialisasi App Fiber
 	app := fiber.New(fiber.Config{
 		AppName: "e-Posyandu API v1.0",
 	})
 
-	// 3. Global Middleware
+	// 5. Global Middleware
 	app.Use(logger.New())
 	app.Use(cors.New())
 
-	// 4. Setup API Routes
+	// 6. Setup API Routes
 	routes.SetupRoutes(app)
 
-	// 5. Health Check Endpoint
+	// 7. Health Check Endpoint
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{
 			"status":  "success",
@@ -36,7 +46,7 @@ func main() {
 		})
 	})
 
-	// 6. Jalankan Server
+	// 8. Jalankan Server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"
