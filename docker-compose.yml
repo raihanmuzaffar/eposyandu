@@ -1,0 +1,57 @@
+services:
+  # Database MySQL
+  db:
+    image: mysql:8.0
+    container_name: eposyandu_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: eposyandu_db
+      MYSQL_USER: eposyandu_user
+      MYSQL_PASSWORD: eposyandu_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Service Backend Go Fiber
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eposyandu_backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: eposyandu_user
+      DB_PASSWORD: eposyandu_password
+      DB_NAME: eposyandu_db
+      JWT_SECRET: eposyandu_super_secret_jwt_key_2026
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Database Management GUI (phpMyAdmin)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: eposyandu_phpmyadmin
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: rootpassword
+    depends_on:
+      - db
+
+volumes:
+  db_data:

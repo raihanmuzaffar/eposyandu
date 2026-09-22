@@ -1,0 +1,23 @@
+# Binary output Go
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Environment variables
+.env
+.env.local
+
+# Docker volume / local data
+db_data/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/.env
+main
+*.exe
