@@ -31,8 +31,11 @@ func Protected() fiber.Handler {
 			})
 		}
 
+		// Menyimpan user_id dan userID untuk mencegah panic pada controller
+		c.Locals("user_id", claims.UserID)
 		c.Locals("userID", claims.UserID)
 		c.Locals("role", claims.Role)
+
 		return c.Next()
 	}
 }

@@ -1,0 +1,257 @@
+basePath: /api/v1
+definitions:
+  controllers.CreateKMSInput:
+    properties:
+      anak_id:
+        example: 1
+        type: integer
+      berat_badan_kg:
+        example: 9.5
+        type: number
+      catatan:
+        example: Tumbuh kembang baik, berikan ASI dan MPASI bergizi
+        type: string
+      lingkar_kepala_cm:
+        example: 45.5
+        type: number
+      tanggal_timbang:
+        description: YYYY-MM-DD
+        example: "2026-09-22"
+        type: string
+      tinggi_badan_cm:
+        example: 75
+        type: number
+      usia_bulan:
+        example: 12
+        type: integer
+    type: object
+  controllers.LoginInput:
+    properties:
+      email:
+        example: admin@eposyandu.local
+        type: string
+      password:
+        example: admin123
+        type: string
+    type: object
+  controllers.RegisterInput:
+    properties:
+      email:
+        example: ahmad@example.com
+        type: string
+      nama:
+        example: Ahmad
+        type: string
+      nama_lengkap:
+        example: Ahmad Dahlan
+        type: string
+      nik:
+        example: "1234567890123456"
+        type: string
+      no_hp:
+        example: "081234567890"
+        type: string
+      password:
+        example: password123
+        type: string
+      role:
+        example: ortu
+        type: string
+    type: object
+host: localhost:3000
+info:
+  contact:
+    email: admin@eposyandu.local
+    name: Tim Pengembang e-Posyandu
+  description: API Service Backend untuk Sistem Informasi e-Posyandu berbasis Go Fiber.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: e-Posyandu API Documentation
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Otentikasi pengguna untuk mendapatkan JWT Token
+      parameters:
+      - description: Kredensial Login
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login berhasil dan token diterbitkan
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Format request tidak valid
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Email atau password salah
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Gagal membuat token autentikasi
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login Pengguna
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: 'Pendaftaran pengguna baru dengan role tertentu (default: ortu)'
+      parameters:
+      - description: Data Registrasi Pengguna
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.RegisterInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Registrasi berhasil
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Format request atau data tidak valid
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Gagal memproses password
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Registrasi Pengguna Baru
+      tags:
+      - Auth
+  /kms:
+    post:
+      consumes:
+      - application/json
+      description: Mencatat hasil penimbangan balita dan mengkalkulasi otomatis status
+        Z-Score WHO (Status Gizi & Stunting)
+      parameters:
+      - description: Data Penimbangan Anak
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/controllers.CreateKMSInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Catatan KMS berhasil ditambahkan
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Format request atau tanggal tidak valid
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Tidak terautentikasi
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Data anak tidak ditemukan
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Gagal menyimpan data penimbangan
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Catat Penimbangan & Tumbuh Kembang Anak (KMS)
+      tags:
+      - KMS & Penimbangan
+  /kms/anak/{anak_id}:
+    get:
+      description: Melihat histori penimbangan dan catatan tumbuh kembang balita berdasarkan
+        ID Anak
+      parameters:
+      - description: ID Anak
+        in: path
+        name: anak_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Data riwayat KMS balita
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Tidak terautentikasi
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Gagal mengambil data riwayat KMS
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Riwayat KMS Balita
+      tags:
+      - KMS & Penimbangan
+  /user/profile:
+    get:
+      description: Mengambil data profil lengkap pengguna yang sedang login berdasarkan
+        JWT Token
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Data profil pengguna
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Tidak terautentikasi
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Pengguna tidak ditemukan
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Ambil Profil Pengguna
+      tags:
+      - Auth
+securityDefinitions:
+  BearerAuth:
+    description: 'Masukkan token JWT dengan format: Bearer <token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -11,17 +11,48 @@ import (
 )
 
 type CreateKMSInput struct {
-	AnakID          uint    `json:"anak_id"`
-	TanggalTimbang  string  `json:"tanggal_timbang"` // YYYY-MM-DD
-	UsiaBulan       int     `json:"usia_bulan"`
-	BeratBadanKg    float64 `json:"berat_badan_kg"`
-	TinggiBadanCm   float64 `json:"tinggi_badan_cm"`
-	LingkarKepalaCm float64 `json:"lingkar_kepala_cm"`
-	Catatan         string  `json:"catatan"`
+	AnakID          uint    `json:"anak_id" example:"1"`
+	TanggalTimbang  string  `json:"tanggal_timbang" example:"2026-09-22"` // YYYY-MM-DD
+	UsiaBulan       int     `json:"usia_bulan" example:"12"`
+	BeratBadanKg    float64 `json:"berat_badan_kg" example:"9.5"`
+	TinggiBadanCm   float64 `json:"tinggi_badan_cm" example:"75.0"`
+	LingkarKepalaCm float64 `json:"lingkar_kepala_cm" example:"45.5"`
+	Catatan         string  `json:"catatan" example:"Tumbuh kembang baik, berikan ASI dan MPASI bergizi"`
 }
 
+// AddPenimbangan godoc
+// @Summary      Catat Penimbangan & Tumbuh Kembang Anak (KMS)
+// @Description  Mencatat hasil penimbangan balita dan mengkalkulasi otomatis status Z-Score WHO (Status Gizi & Stunting)
+// @Tags         KMS & Penimbangan
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request body CreateKMSInput true "Data Penimbangan Anak"
+// @Success      201 {object} map[string]interface{} "Catatan KMS berhasil ditambahkan"
+// @Failure      400 {object} map[string]interface{} "Format request atau tanggal tidak valid"
+// @Failure      401 {object} map[string]interface{} "Tidak terautentikasi"
+// @Failure      404 {object} map[string]interface{} "Data anak tidak ditemukan"
+// @Failure      500 {object} map[string]interface{} "Gagal menyimpan data penimbangan"
+// @Router       /kms [post]
 func AddPenimbangan(c *fiber.Ctx) error {
-	kaderID := c.Locals("user_id").(uint)
+	// Pengecekan ID Kader secara aman dari c.Locals untuk mencegah panic
+	var kaderID uint
+	if id, ok := c.Locals("user_id").(uint); ok {
+		kaderID = id
+	} else if id, ok := c.Locals("userID").(uint); ok {
+		kaderID = id
+	} else if idFloat, ok := c.Locals("user_id").(float64); ok {
+		kaderID = uint(idFloat)
+	} else if idFloat, ok := c.Locals("userID").(float64); ok {
+		kaderID = uint(idFloat)
+	}
+
+	if kaderID == 0 {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Tidak terautentikasi / ID Pengguna tidak valid",
+		})
+	}
 
 	var input CreateKMSInput
 	if err := c.BodyParser(&input); err != nil {
@@ -66,7 +97,17 @@ func AddPenimbangan(c *fiber.Ctx) error {
 	})
 }
 
-// GetRiwayatKMSByAnak melihat histori penimbangan KMS balita
+// GetRiwayatKMSByAnak godoc
+// @Summary      Riwayat KMS Balita
+// @Description  Melihat histori penimbangan dan catatan tumbuh kembang balita berdasarkan ID Anak
+// @Tags         KMS & Penimbangan
+// @Produce      json
+// @Security     BearerAuth
+// @Param        anak_id path int true "ID Anak"
+// @Success      200 {object} map[string]interface{} "Data riwayat KMS balita"
+// @Failure      401 {object} map[string]interface{} "Tidak terautentikasi"
+// @Failure      500 {object} map[string]interface{} "Gagal mengambil data riwayat KMS"
+// @Router       /kms/anak/{anak_id} [get]
 func GetRiwayatKMSByAnak(c *fiber.Ctx) error {
 	anakID := c.Params("anak_id")
 

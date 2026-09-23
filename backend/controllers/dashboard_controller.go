@@ -24,8 +24,10 @@ func GetDashboardSummary(c *fiber.Ctx) error {
 	// Hitung total penimbangan
 	config.DB.Model(&models.PenimbanganKMS{}).Count(&totalPenimbangan)
 
-	// Hitung anak terindikasi stunting dari KMS
-	config.DB.Model(&models.PenimbanganKMS{}).Where("status_stunting LIKE ?", "%Stunting%").Count(&totalStunting)
+	// Hitung anak terindikasi stunting dari KMS (pendek dan sangat_pendek)
+	config.DB.Model(&models.PenimbanganKMS{}).
+		Where("status_stunting IN (?)", []string{"pendek", "sangat_pendek"}).
+		Count(&totalStunting)
 
 	return c.JSON(fiber.Map{
 		"status": "success",
